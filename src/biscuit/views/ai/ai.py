@@ -10,7 +10,6 @@ from biscuit.common.ui import Frame
 
 from ..sidebar_view_secondary import SideBarView
 from .chat import AgentChat
-from .placeholder import AIPlaceholder
 
 if typing.TYPE_CHECKING:
     ...
@@ -27,8 +26,6 @@ class AI(SideBarView):
         self.agent = None
         self.attached_files: list[str] = []
 
-        self.title.grid_forget()
-
         _auto_register()
         self.available_models = list_models()
         self.current_model = self._load_default_model()
@@ -42,12 +39,7 @@ class AI(SideBarView):
         self.add_action(Icons.ELLIPSIS, self.menu.show)
         self.add_action(Icons.SETTINGS, self.open_settings)
 
-        self.placeholder = AIPlaceholder(self)
-
-        if self._has_any_key():
-            self.add_chat()
-        else:
-            self.add_placeholder()
+        self.add_chat()
 
     def _load_default_model(self) -> str:
         models = list_models()
@@ -99,16 +91,6 @@ class AI(SideBarView):
         if self.agent:
             self.agent.set_attached_files(self.attached_files)
 
-    def add_placeholder(self) -> None:
-        self.add_item(self.placeholder)
-        if self.chat:
-            self.remove_item(self.chat)
-            self.chat.destroy()
-            self.chat = None
-        if self.agent:
-            self.agent.stop_execution()
-            self.agent = None
-
     def add_chat(self) -> None:
         if self.chat:
             self.remove_item(self.chat)
@@ -123,23 +105,15 @@ class AI(SideBarView):
             model_id = self.available_models.get(self.current_model, "")
             api_key = self._get_key_for_model(model_id)
 
-            if not api_key:
-                if not self._has_any_key():
-                    self.add_placeholder()
-                    return
-                self.base.notifications.warning(f"No API key configured for model '{self.current_model}'. Open Settings (Ctrl+,) to configure.")
-                return
-
-            self.agent = Agent(self.base, api_key, model_id)
-            if self.attached_files:
-                self.agent.set_attached_files(self.attached_files)
-
-            self._start_mcp()
+            if api_key:
+                self.agent = Agent(self.base, api_key, model_id)
+                if self.attached_files:
+                    self.agent.set_attached_files(self.attached_files)
+                self._start_mcp()
 
             self.chat = AgentChat(self)
             self.chat.set_enhanced_agent(self.agent)
             self.add_item(self.chat)
-            self.remove_item(self.placeholder)
 
         except Exception as e:
             if self.base.logger:
@@ -177,6 +151,8 @@ class AI(SideBarView):
         self.add_chat()
         if self.attached_files and self.agent:
             self.agent.set_attached_files(self.attached_files)
+        elif self.attached_files:
+            self.attached_files.clear()
 
     def copy_chat(self) -> None:
         if self.chat:
